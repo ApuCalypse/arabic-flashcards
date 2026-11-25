@@ -137,12 +137,19 @@ header { display: grid; gap: 4px; }
 /* Phrase list */
 section h3 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
 .list { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-.item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 16px; padding: 12px 16px; border-top: 1px solid var(--line); align-items: start; }
+.item { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: 4px 12px; padding: 12px 16px 12px 8px; border-top: 1px solid var(--line); align-items: start; }
+.fav { grid-row: span 2; border: 0; background: none; font-size: 24px; line-height: 1; padding: 4px 6px; border-radius: 8px; color: var(--muted); opacity: .55; }
+.fav:hover { opacity: 1; background: var(--surface-2); }
+.fav[aria-pressed="true"] { color: var(--accent); opacity: 1; }
+.chip-fav .c-ar, .chip-fav { color: var(--accent); }
+.chip-fav[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.chip-fav[aria-pressed="true"] .c-ar { color: inherit; }
+.empty { padding: 22px 16px; text-align: center; color: var(--muted); }
 .item:first-child { border-top: 0; }
 .item .en { font-weight: 500; min-width: 0; }
 .item .ar { font-family: var(--f-ar); font-size: 30px; line-height: 1.7; text-align: right; min-width: 0; }
 .item .ar small { display: block; font-size: 24px; color: var(--green); }
-.item .nt { grid-column: 1 / -1; font-size: 14px; color: var(--muted); }
+.item .nt { grid-column: 2 / -1; font-size: 14px; color: var(--muted); }
 .item .nt [lang="ar"] { font-size: 21px; }
 .chapter { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; padding: 14px 16px 8px; background: var(--surface-2); border-top: 1px solid var(--line); }
 .chapter:first-child { border-top: 0; }
@@ -150,8 +157,10 @@ section h3 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; c
 .chapter .ar { font-family: var(--f-ar); font-size: 22px; font-weight: 600; line-height: 1.6; margin-left: auto; }
 .list-title-ar { font-family: var(--f-ar); font-size: 20px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--fg); margin-left: 8px; }
 @media (max-width: 520px) {
-  .item { grid-template-columns: 1fr; }
-  .item .ar { text-align: right; }
+  .item { grid-template-columns: auto minmax(0, 1fr); }
+  .fav { grid-row: span 3; }
+  .item .ar, .item .nt { grid-column: 2; text-align: right; }
+  .item .nt { text-align: left; }
 }
 
 /* Download */
@@ -248,14 +257,25 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;"
 // Wrap Arabic runs inside mixed text so they get the Arabic font and direction.
 const mixed = s => esc(s).replace(/([؀-ۿ][؀-ۿً-ْ\s،؟…\/()]*[؀-ۿً-ْ؟…]|[؀-ۿ])/g, '<span lang="ar" dir="rtl">$1</span>');
 
+// Favorites are kept per viewer, keyed by the phrase text so they survive new cards being added.
+const favKey = i => ROWS[i][1] + "|" + ROWS[i][0];
+let favs = new Set();
+try { favs = new Set(JSON.parse(store.get("favs") || "[]")); } catch {}
+const isFav = i => favs.has(favKey(i));
+function toggleFav(i) {
+  const k = favKey(i);
+  favs.has(k) ? favs.delete(k) : favs.add(k);
+  store.set("favs", JSON.stringify([...favs]));
+}
+
 let cat = store.get("cat") ?? "all";
-if (cat !== "all" && !CATS[+cat]) cat = "all";
+if (cat !== "all" && cat !== "fav" && !CATS[+cat]) cat = "all";
 let dir = store.get("dir") === "ar" ? "ar" : "en";
 let shuffled = false;
 let deck = [], pos = 0, flipped = false, missed = [], known = 0;
 
 function pool() {
-  return ROWS.map((r, i) => i).filter(i => cat === "all" || ROWS[i][4] === +cat);
+  return ROWS.map((r, i) => i).filter(i => cat === "all" || (cat === "fav" ? isFav(i) : ROWS[i][4] === +cat));
 }
 function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
@@ -270,7 +290,11 @@ function start(indices) {
 
 function renderRail() {
   const counts = CATS.map((_, ci) => ROWS.filter(r => r[4] === ci).length);
-  const chips = [`<button class="chip" type="button" data-cat="all" aria-pressed="${cat === "all"}">All <span class="n">${ROWS.length}</span></button>`]
+  const nFav = ROWS.filter((_, i) => isFav(i)).length;
+  const chips = [
+    `<button class="chip" type="button" data-cat="all" aria-pressed="${cat === "all"}"><span class="c-ar" lang="ar" dir="rtl">الْكُلّ</span>All <span class="n">${ROWS.length}</span></button>`,
+    `<button class="chip chip-fav" type="button" data-cat="fav" aria-pressed="${cat === "fav"}"><span class="c-ar" lang="ar" dir="rtl">الْمُفَضَّلَة</span>★ Favorites <span class="n">${nFav}</span></button>`
+  ]
     .concat(CATS.map((c, ci) => `<button class="chip" type="button" data-cat="${ci}" aria-pressed="${cat === String(ci)}"><span class="c-ar" lang="ar" dir="rtl">${esc(c.ar)}</span>${esc(c.en)} <span class="n">${counts[ci]}</span></button>`));
   $("rail").innerHTML = chips.join("");
 }
@@ -279,16 +303,24 @@ function renderList() {
   const idx = pool();
   $("list-title").innerHTML = cat === "all"
     ? `All phrases · ${idx.length}`
+    : cat === "fav"
+    ? `★ Favorites · ${idx.length}<span class="list-title-ar" lang="ar" dir="rtl">الْمُفَضَّلَة</span>`
     : `${esc(CATS[+cat].en)} · ${idx.length}<span class="list-title-ar" lang="ar" dir="rtl">${esc(CATS[+cat].ar)}</span>`;
+  if (!idx.length) {
+    $("list").innerHTML = `<div class="empty">No favorites yet. Tap ☆ next to any phrase to save it here.</div>`;
+    return;
+  }
   let prev = -1;
   $("list").innerHTML = idx.map(i => {
     const [en, ar, reply, note, ci] = ROWS[i];
     let head = "";
-    if (cat === "all" && ci !== prev) {
+    const star = `<button class="fav" type="button" data-fav="${i}" aria-pressed="${isFav(i)}" aria-label="${isFav(i) ? "Remove from" : "Add to"} favorites">${isFav(i) ? "★" : "☆"}</button>`;
+    if (cat !== "all" && cat !== "fav") prev = ci;
+    if (ci !== prev) {
       prev = ci;
       head = `<div class="chapter"><span class="en">${esc(CATS[ci].en)}</span><span class="ar" lang="ar" dir="rtl">${esc(CATS[ci].ar)}</span></div>`;
     }
-    return head + `<div class="item"><div class="en">${esc(en)}</div><div class="ar" lang="ar" dir="rtl">${esc(ar)}${reply ? `<small>↩ ${esc(reply)}</small>` : ""}</div>${note ? `<div class="nt">${mixed(note)}</div>` : ""}</div>`;
+    return head + `<div class="item">${star}<div class="en">${esc(en)}</div><div class="ar" lang="ar" dir="rtl">${esc(ar)}${reply ? `<small>↩ ${esc(reply)}</small>` : ""}</div>${note ? `<div class="nt">${mixed(note)}</div>` : ""}</div>`;
   }).join("");
 }
 
@@ -339,6 +371,15 @@ function finish() {
   $("study").hidden = true; $("answer").hidden = true; $("done").hidden = false;
   $("bar").style.width = "100%";
   const n = missed.length;
+  const empty = deck.length === 0;
+  $("done").querySelector("h2").hidden = empty;
+  $("restart").hidden = empty;
+  if (empty) {
+    $("done-text").textContent = "No favorites yet. Tap ☆ next to a phrase in the list below to add it here.";
+    $("review").hidden = true;
+    $("bar").style.width = "0";
+    return;
+  }
   $("done-text").textContent = n
     ? `You knew ${known} of ${deck.length}. ${n} card${n > 1 ? "s" : ""} to review.`
     : `You knew all ${deck.length} cards in this round.`;
@@ -358,6 +399,21 @@ function setDir(d) {
 }
 
 $("rail").addEventListener("click", e => { const b = e.target.closest("[data-cat]"); if (b) setCat(b.dataset.cat); });
+$("list").addEventListener("click", e => {
+  const b = e.target.closest("[data-fav]");
+  if (!b) return;
+  toggleFav(+b.dataset.fav);
+  renderRail();
+  if (cat === "fav") {
+    renderList();
+    if (!pool().length || $("done").hidden === false) start(pool());
+  } else {
+    const on = isFav(+b.dataset.fav);
+    b.setAttribute("aria-pressed", on);
+    b.setAttribute("aria-label", `${on ? "Remove from" : "Add to"} favorites`);
+    b.textContent = on ? "★" : "☆";
+  }
+});
 $("dir-en").onclick = () => setDir("en");
 $("dir-ar").onclick = () => setDir("ar");
 $("shuffle").onclick = () => {
