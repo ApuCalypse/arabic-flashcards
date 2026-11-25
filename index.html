@@ -61,9 +61,10 @@ header { display: grid; gap: 4px; }
 /* Category rail */
 .rail { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
-  border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
-  padding: 6px 12px; font-size: 13.5px; font-weight: 500; display: inline-flex; gap: 6px; align-items: baseline;
+  border: 1px solid var(--line); background: var(--surface); border-radius: 12px;
+  padding: 6px 12px; font-size: 13px; font-weight: 500; display: inline-grid; grid-template-columns: auto auto; column-gap: 6px; align-items: baseline; text-align: left;
 }
+.chip .c-ar { grid-column: 1 / -1; font-family: var(--f-ar); font-size: 19px; line-height: 1.5; font-weight: 700; text-align: right; }
 .chip .n { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .chip[aria-pressed="true"] .n { color: inherit; opacity: .7; }
@@ -140,10 +141,15 @@ section h3 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; c
 .item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 16px; padding: 12px 16px; border-top: 1px solid var(--line); align-items: start; }
 .item:first-child { border-top: 0; }
 .item .en { font-weight: 500; min-width: 0; }
-.item .ar { font-family: var(--f-ar); font-size: 22px; line-height: 1.7; text-align: right; min-width: 0; }
-.item .ar small { display: block; font-size: 18px; color: var(--green); }
-.item .nt { grid-column: 1 / -1; font-size: 13.5px; color: var(--muted); }
-.item .nt [lang="ar"] { font-size: 16px; }
+.item .ar { font-family: var(--f-ar); font-size: 30px; line-height: 1.7; text-align: right; min-width: 0; }
+.item .ar small { display: block; font-size: 24px; color: var(--green); }
+.item .nt { grid-column: 1 / -1; font-size: 14px; color: var(--muted); }
+.item .nt [lang="ar"] { font-size: 21px; }
+.chapter { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; padding: 14px 16px 8px; background: var(--surface-2); border-top: 1px solid var(--line); }
+.chapter:first-child { border-top: 0; }
+.chapter .en { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.chapter .ar { font-family: var(--f-kufi); font-size: 24px; font-weight: 700; line-height: 1.4; margin-left: auto; }
+.list-title-ar { font-family: var(--f-kufi); font-size: 22px; letter-spacing: 0; text-transform: none; color: var(--fg); margin-left: 8px; }
 @media (max-width: 520px) {
   .item { grid-template-columns: 1fr; }
   .item .ar { text-align: right; }
@@ -266,16 +272,24 @@ function start(indices) {
 function renderRail() {
   const counts = CATS.map((_, ci) => ROWS.filter(r => r[4] === ci).length);
   const chips = [`<button class="chip" type="button" data-cat="all" aria-pressed="${cat === "all"}">All <span class="n">${ROWS.length}</span></button>`]
-    .concat(CATS.map((c, ci) => `<button class="chip" type="button" data-cat="${ci}" aria-pressed="${cat === String(ci)}">${esc(c.en)} <span class="n">${counts[ci]}</span></button>`));
+    .concat(CATS.map((c, ci) => `<button class="chip" type="button" data-cat="${ci}" aria-pressed="${cat === String(ci)}"><span class="c-ar" lang="ar" dir="rtl">${esc(c.ar)}</span>${esc(c.en)} <span class="n">${counts[ci]}</span></button>`));
   $("rail").innerHTML = chips.join("");
 }
 
 function renderList() {
   const idx = pool();
-  $("list-title").textContent = cat === "all" ? `All phrases · ${idx.length}` : `${CATS[+cat].en} · ${idx.length}`;
+  $("list-title").innerHTML = cat === "all"
+    ? `All phrases · ${idx.length}`
+    : `${esc(CATS[+cat].en)} · ${idx.length}<span class="list-title-ar" lang="ar" dir="rtl">${esc(CATS[+cat].ar)}</span>`;
+  let prev = -1;
   $("list").innerHTML = idx.map(i => {
-    const [en, ar, reply, note] = ROWS[i];
-    return `<div class="item"><div class="en">${esc(en)}</div><div class="ar" lang="ar" dir="rtl">${esc(ar)}${reply ? `<small>↩ ${esc(reply)}</small>` : ""}</div>${note ? `<div class="nt">${mixed(note)}</div>` : ""}</div>`;
+    const [en, ar, reply, note, ci] = ROWS[i];
+    let head = "";
+    if (cat === "all" && ci !== prev) {
+      prev = ci;
+      head = `<div class="chapter"><span class="en">${esc(CATS[ci].en)}</span><span class="ar" lang="ar" dir="rtl">${esc(CATS[ci].ar)}</span></div>`;
+    }
+    return head + `<div class="item"><div class="en">${esc(en)}</div><div class="ar" lang="ar" dir="rtl">${esc(ar)}${reply ? `<small>↩ ${esc(reply)}</small>` : ""}</div>${note ? `<div class="nt">${mixed(note)}</div>` : ""}</div>`;
   }).join("");
 }
 
